@@ -19,7 +19,6 @@
 
 #-------------------------------------------------------------------------------
 
-
 library(truncnorm)
 
 eff_main_fn <- function(x, case) { # main (treatment-free) effect function
