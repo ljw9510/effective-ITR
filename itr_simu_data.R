@@ -22,7 +22,7 @@
 
 library(truncnorm)
 
-eff_main_fn <- function(x) { # main (treatment-free) effect function
+eff_main_fn <- function(x, case) { # main (treatment-free) effect function
   main <- switch(
     case,
     `1` =  1.0 + 2.0 * x[,1] + 2.0 * x[,2],
@@ -37,7 +37,7 @@ eff_main_fn <- function(x) { # main (treatment-free) effect function
   return(main)
 }
 
-eff_interaction_fn <- function(x, a) { # interaction function
+eff_interaction_fn <- function(x, a, case) { # interaction function
   interaction <- switch(
     case,
     `1` = case_when(a == 1 ~ 0.75 + 1.5 * x[,1] + 1.5 * x[,2] + 1.5 * x[,3] + 1.5 * x[,4],
@@ -77,7 +77,7 @@ eff_interaction_fn <- function(x, a) { # interaction function
   return(interaction)
 }
 
-counterfactuals_fn <- function(x) { # to get optimal ITR
+counterfactuals_fn <- function(x, case) { # to get optimal ITR
   cate <- switch(
     case,
     `1` = data.frame(
@@ -124,7 +124,7 @@ counterfactuals_fn <- function(x) { # to get optimal ITR
   return(cate)
 }
 
-err_fn <- function(x, a){ # heterogeneous variance, function of covariate and treatment
+err_fn <- function(x, a, case){ # heterogeneous variance, function of covariate and treatment
   err <- switch(
     case,
     `1` = 0.25 + 0.2 * (1.5 - x[,2])^2,
@@ -159,13 +159,13 @@ make_data <- function(n, p = 20, case = 1, sigma = 1) {
   }
   
   ## outcome
-  eff_main <- eff_main_fn(x)
-  eff_interaction <- eff_interaction_fn(x, trt) 
-  sigma_x <- err_fn(x, trt)
+  eff_main <- eff_main_fn(x, case)
+  eff_interaction <- eff_interaction_fn(x, trt, case) 
+  sigma_x <- err_fn(x, trt, case)
   err <- rnorm(n, 0, sd = sigma) * sqrt(sigma_x)
   y <- eff_main + eff_interaction + err
 
-  eff_cate <- counterfactuals_fn(x) 
+  eff_cate <- counterfactuals_fn(x, case) 
   opt_trt <- max.col(eff_cate)
   potential_outcome <- eff_main + eff_cate + err
   
