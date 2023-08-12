@@ -117,7 +117,6 @@ get_ITR <- function(fit, X, K = 4, lasso = TRUE) {
   return(itr)  
 }
 
-
 ## Compute covariate balancing weights -----------------------------------------
 
 get_IPW_weights <- function(data, method = "RF"){
@@ -398,7 +397,6 @@ evaluation <- function(wts, x_training, trt_training, y_training, x_test, K = 4,
   return(c(misclassification, emp_value, ideal_emp_value))
 }
 
-
 ## Summarize results -----------------------------------------------------------
 
 summary_result <- function(result, p0 = c(20,40,60)){
@@ -450,8 +448,9 @@ main <- function(case = 1, n_train = 200,
     result0 <- foreach(i = 1:n_itr, .combine = rbind, .options.snow = opts) %dopar% {
       
       .GlobalEnv$case <- case
-      source("itr_simu_data.R")
+      
       source("multi_category_method.R")
+      source("itr_simu_data.R")
       
       set.seed(i)
       
@@ -513,4 +512,85 @@ main <- function(case = 1, n_train = 200,
   }      
   return(result0_list)
   stopCluster(cl)
+}
+
+## Fit modified AD/SABD-Learning -----------------------------------------------
+
+ITR_Learning <- function(x_training, trt_training, y_training, type = "SABD", K,
+                         use_ebw = TRUE, screened = TRUE, augmented = TRUE){
+  
+  ## Fit modified AD/SABD-Learning.
+  
+  ## input
+  # x_training : vector of covariates in the training set.
+  # trt_training : vector of treatments in the training set.
+  # y_training : vector of outcomes in the training set.
+  # type : a character string either "AD" or "SABD".
+  # K : number of treatments.
+  # use_ebw : a logical indicator of whether to use distributional covariate balancing weight, i.e. energy balancing weight.
+  # screened : a logical indicator of whether to use variable screenning.
+  # augmented : a logical indicator of whether to use outcome augmentation.
+  
+  ## output
+  # 1. AD/SABD-Learning fit
+  # 2. index of covariates used for model fitting
+  
+  set.seed(1)
+  
+  # screening
+  if (screened == TRUE) {
+    selected_cov <- distance_cov_test(y_training, trt_training, x_training, K = K)
+    if (length(selected_cov)!=0){
+      x_training <- x_training[,selected_cov]
+    }  
+  } else {
+    p <- ncol(x_training)
+    selected_cov <- 1:p
+  }
+  
+  # augmented for main effects
+  if (augmented == TRUE){
+    y_training <- as.numeric(augmented_function(y_training, x_training, split_aug = FALSE))  
+  }
+  
+  # weights
+  AX_training <- data.frame(A = factor(trt_training), x_training)
+  if (use_ebw == TRUE) {
+    energy_w <- tryCatch(weightit(A ~ ., data = AX_training, method = "energy", 
+                                  estimand = "ATE")$weights,
+                         error=function(e) rep(0, nrow(AX_training)))
+    w <- normalized_weights(energy_w, trt_training)
+  } else {
+    ipw <- get_IPW_weights(AX_training)
+    w <- normalized_weights(ipw, trt_training)
+  }
+  
+  # ITR-Learning
+  if (type == "AD"){
+    fit0 = modified_adlearn(x_training, trt_training, y_training, w = w, K = K)
+    return(list(fit0, "used_covariate" = selected_cov))
+  } 
+  
+  if (type == "SABD"){
+    fit0 = modified_sabdlearn(x_training, trt_training, y_training, w = w, modified = FALSE, K = K)
+    return(list(fit0, "used_covariate" = selected_cov))
+  }
+}
+
+
+
+predict_ITR <- function(fit, x_test, K){
+  
+  ## Provide predicted individual treatment rule (ITR).
+  
+  ## input
+  # fit : the output of ITR-Learning.
+  # x_test : vector of covariates in the test set.
+  # K : number of treatments.
+  
+  fit0 <- fit[[1]]
+  selected_cov <- fit[[2]]
+  x_test <- x_test[,selected_cov]
+  itr <- get_ITR(fit0, x_test, K = K) 
+  return(itr)
 }
