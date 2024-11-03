@@ -1,4 +1,4 @@
-# multiITR
+# An Effective Framework for Estimating Individualized Treatment Rules
 This repository provides the core code for effective and robust Individualized Treatment Rule (ITR) Learning, as presented in the following paper:
 
 Joowon Lee, Jared Davis Huling, Guanhua Chen
