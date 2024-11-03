@@ -153,6 +153,8 @@ Rules</strong>”] (To appear in NeurIPS 2024).</p>
 introduced in the paper, specifically designed for continuous
 outcomes.</p>
 <p>To begin, load the necessary source files.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;methods.R&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">source</span>(<span class="st">&quot;itr_simu_data.R&quot;</span>)</span></code></pre></div>
 <p>Next, to provide an example, we generate a simulated dataset using
 the <code>generate_data</code> function. The <code>case</code> argument
 specifies eight different scenarios: odd values represent randomized
@@ -162,8 +164,8 @@ dataset contains a covariate data matrix (<code>x</code>), treatment
 vector (<code>trt</code>), and outcome vector (<code>y</code>). In the
 test dataset, <code>true_opt_trt_test</code> is an additional vector
 specifying the true optimal treatment.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>dat <span class="ot">&lt;-</span> <span class="fu">generate_data</span>(<span class="at">case =</span> <span class="dv">6</span>, <span class="at">n_train =</span> <span class="dv">500</span>, <span class="at">p =</span> <span class="dv">60</span>, <span class="at">no.seed =</span> <span class="dv">3</span>)</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">names</span>(dat)</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>dat <span class="ot">&lt;-</span> <span class="fu">generate_data</span>(<span class="at">case =</span> <span class="dv">6</span>, <span class="at">n_train =</span> <span class="dv">500</span>, <span class="at">p =</span> <span class="dv">60</span>, <span class="at">no.seed =</span> <span class="dv">3</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">names</span>(dat)</span></code></pre></div>
 <pre><code>## [1] &quot;x_training&quot;        &quot;trt_training&quot;      &quot;y_training&quot;       
 ## [4] &quot;x_test&quot;            &quot;trt_test&quot;          &quot;y_test&quot;           
 ## [7] &quot;true_opt_trt_test&quot;</code></pre>
@@ -171,9 +173,9 @@ specifying the true optimal treatment.</p>
 <code>n_train = 500</code>, resulting in an x_training matrix with
 dimensions 500, 60. Below are the first five rows and columns of
 <code>x_training</code>:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">dim</span>(dat<span class="sc">$</span>x_training)</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">dim</span>(dat<span class="sc">$</span>x_training)</span></code></pre></div>
 <pre><code>## [1] 500  60</code></pre>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>dat<span class="sc">$</span>x_training[<span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>dat<span class="sc">$</span>x_training[<span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>]</span></code></pre></div>
 <pre><code>##            [,1]       [,2]      [,3]       [,4]        [,5]
 ## [1,] -0.2925257  0.7720520 1.7019966  0.5640295 -0.44945505
 ## [2,] -1.2188574 -0.2411208 0.1515526  0.1793675 -0.09863541
@@ -184,11 +186,11 @@ dimensions 500, 60. Below are the first five rows and columns of
 in the training set. The treatment vector includes four unique values,
 which should range from 1 to K, where K represents the number of
 treatments.</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">head</span>(dat<span class="sc">$</span>trt_training)</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">head</span>(dat<span class="sc">$</span>trt_training)</span></code></pre></div>
 <pre><code>## [1] 1 2 4 2 4 1</code></pre>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">head</span>(dat<span class="sc">$</span>y_training)</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">head</span>(dat<span class="sc">$</span>y_training)</span></code></pre></div>
 <pre><code>## [1]   0.4662660  -1.6014735 -13.7532065   0.2923385   1.0375400  -4.7053501</code></pre>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">unique</span>(dat<span class="sc">$</span>trt_training)</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">unique</span>(dat<span class="sc">$</span>trt_training)</span></code></pre></div>
 <pre><code>## [1] 1 2 4 3</code></pre>
 <p>The <code>all_evaluation</code> function estimates the ITR using the
 proposed effective ITR-Learning method along with other benchmark
@@ -209,31 +211,31 @@ data comes from a randomized trial. Default is
 <li><p><code>binary</code>: Set to <code>TRUE</code> if the outcome of
 interest is binary (not yet supported).</p></li>
 </ul>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">all_evaluation</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training,</span>
-<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>               dat<span class="sc">$</span>x_test, dat<span class="sc">$</span>trt_test, dat<span class="sc">$</span>y_test, dat<span class="sc">$</span>true_opt_trt_test,</span>
-<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>               <span class="at">randomized_trial =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>results<span class="sc">$</span>accuracy</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>results <span class="ot">&lt;-</span> <span class="fu">all_evaluation</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training,</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>               dat<span class="sc">$</span>x_test, dat<span class="sc">$</span>trt_test, dat<span class="sc">$</span>y_test, dat<span class="sc">$</span>true_opt_trt_test,</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>               <span class="at">randomized_trial =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>results<span class="sc">$</span>accuracy</span></code></pre></div>
 <pre><code>##         AD       SABD   Proposed policytree  causalDML 
 ##     0.2391     0.4903     0.7382     0.4740     0.4854</code></pre>
 <p>The estimated ITR is available under <code>estimated_ITR</code>. For
 example, to view the estimated ITR for our proposed method:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>results<span class="sc">$</span>estimated_ITR<span class="sc">$</span>Proposed[<span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>results<span class="sc">$</span>estimated_ITR<span class="sc">$</span>Proposed[<span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>]</span></code></pre></div>
 <pre><code>##  [1] 4 3 4 2 1 3 3 1 4 4 1 2 2 1 4 2 1 3 1 4 3 4 2 2 3 3 1 4 2 3 2 3 1 3 3 1 4 3
 ## [39] 3 1 3 4 1 4 2 3 2 4 1 2</code></pre>
 <p>If you’re using real data without known true optimal treatment
 information, leave <code>true_opt_trt_test</code> unspecified as below.
 In this case, the function will return only the estimated ITR without
 accuracy.</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a>results_real <span class="ot">&lt;-</span> <span class="fu">all_evaluation</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training,</span>
-<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>               dat<span class="sc">$</span>x_test, dat<span class="sc">$</span>trt_test, dat<span class="sc">$</span>y_test,</span>
-<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>               <span class="at">randomized_trial =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="fu">names</span>(results_real)</span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>results_real <span class="ot">&lt;-</span> <span class="fu">all_evaluation</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training,</span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>               dat<span class="sc">$</span>x_test, dat<span class="sc">$</span>trt_test, dat<span class="sc">$</span>y_test,</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>               <span class="at">randomized_trial =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a><span class="fu">names</span>(results_real)</span></code></pre></div>
 <pre><code>## [1] &quot;AD&quot;         &quot;SABD&quot;       &quot;Proposed&quot;   &quot;policytree&quot; &quot;causalDML&quot;</code></pre>
 <p>To directly fit the proposed method and obtain the estimated ITR, use
 the following:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a>proposed_fit <span class="ot">&lt;-</span> <span class="fu">ITR_Learning</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training, <span class="at">binary =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>estimated_ITR2 <span class="ot">&lt;-</span> <span class="fu">predict_ITR</span>(proposed_fit, dat<span class="sc">$</span>x_test)</span>
-<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a>estimated_ITR2[<span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a>proposed_fit <span class="ot">&lt;-</span> <span class="fu">ITR_Learning</span>(dat<span class="sc">$</span>x_training, dat<span class="sc">$</span>trt_training, dat<span class="sc">$</span>y_training, <span class="at">binary =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" tabindex="-1"></a>estimated_ITR2 <span class="ot">&lt;-</span> <span class="fu">predict_ITR</span>(proposed_fit, dat<span class="sc">$</span>x_test)</span>
+<span id="cb20-3"><a href="#cb20-3" tabindex="-1"></a>estimated_ITR2[<span class="dv">1</span><span class="sc">:</span><span class="dv">50</span>]</span></code></pre></div>
 <pre><code>##  [1] 4 3 4 2 1 3 3 1 4 4 1 2 2 1 4 2 1 3 1 4 3 4 2 2 3 3 1 4 2 3 2 3 1 3 3 1 4 3
 ## [39] 3 1 3 4 1 4 2 3 2 4 1 2</code></pre>
 <p>The code for AD and SABD is based on the work from Kushal S. Shah,
