@@ -1,4 +1,7 @@
 # multiITR
-Methods for robust and effective ITR estimation in multi-category treatments.
+This repository provides the core code for effective and robust Individualized Treatment Rule (ITR) Learning, as presented in the following paper:
 
-The code for angle-based direct learning (AD) and stabilized angle-based direct learning (SABD) is based on the work from Kushal S. Shah, Haoda Fu, and Michael R. Kosorok, the authors of SABD-Learning.
+Joowon Lee, Jared Davis Huling, Guanhua Chen
+[**"An Effective Framework for Estimating Individualized Treatment Rules"**] (To appear in NeurIPS 2024)
+
+For an in-depth guide on using our method, please refer to the Tutorial.html.
