@@ -133,6 +133,251 @@ get_ITR <- function(fit, X, K = 4, lasso = TRUE) {
   return(itr)
 }
 
+GD_l1ball <- function(temp, K, n, p, lambda1 = 1, lambda2 = 0,
+                      iter0 = 100, alpha = 0.01){
+  
+  ## Estimate B using projected gradient descent (PGD) for continuous outcome.
+  
+  ## input
+  # temp: (list) output of `get_x_and_trt_fast` function for a faster computation.
+  # K: (integer) number of treatments.
+  # n: (integer) number of sample size (training set).
+  # p: (integer) number of covariates.
+  # lambda1: (numeric) L1-ball size for constrained set.
+  # lambda2: (numeric) L2 penalization parameter.
+  # iter0: (integer) number of iterations of PGD algorithm.
+  # alpha: (numeric) step size of PGD algorithm. Currently supports diminishing step size.
+  
+  ## output
+  # model fit (B matrix)
+  
+  set.seed(1)
+  
+  xxt <- temp[[1]]
+  uut <- temp[[2]]
+  yx <- temp[[3]]
+  
+  # initialize B
+  B0 <- matrix(runif( (p+1) * (K-1), -1, 1), nrow = p+1, ncol = K-1) 
+  proj_grad <- euclidean_proj_l1_ball(c(B0), z = lambda1)
+  B <- matrix(proj_grad, nrow = nrow(B0))
+  
+  # use GD
+  i <- 1
+  while (i < iter0){
+    grad <- 0
+    for (trt_j in 1:K){
+      grad <- grad + 2 * xxt[[trt_j]] %*% B %*% uut[[trt_j]] - 2 * yx[[trt_j]]
+    }
+    grad <- grad/n + 2 * lambda2 * B # for L2 regularize
+    
+    B0 <- B - (alpha/i) * grad
+    proj_grad <- euclidean_proj_l1_ball(c(B0), z = lambda1)
+    B <- matrix(proj_grad, nrow = nrow(B0))
+    
+    i <- i + 1
+  }
+  return (B)
+}
+
+GD_l1ball_binary <- function(w, trt, x, y, K, iter0 = 1000, alpha = 1, lambda1 = 2){
+  
+  ## Estimate B using projected gradient descent (PGD) for binary outcome.
+  
+  ## input
+  # w: (vector) covariate balancing weights.
+  # trt: (vector) vector of treatments.
+  # x: (data.matrix) data matrix of covariates.
+  # y: (vector) vector of outcomes.
+  # K: (integer) number of treatments.
+  # iter0: (integer) number of iterations of PGD algorithm.
+  # alpha: (numeric) step size of PGD algorithm. Currently supports diminishing step size.
+  # lambda1: (numeric) L1-ball size for constrained set.
+  
+  ## output
+  # model fit (B matrix)
+  
+  set.seed(1)
+  vertices <- simplex(K-1)
+  treatment_specific_vertices <- vertices[trt, ]
+  
+  if (is.null(dim(x))){
+    n <- length(x); p <- 1
+    xstar <- list()
+    for (i in 1:n){
+      xstar[[i]] <- c(1, x[i]) %*% t(treatment_specific_vertices[i,])
+    }
+  } else {
+    n <- nrow(x); p <- ncol(x)  
+    xstar <- list()
+    for (i in 1:n){
+      xstar[[i]] <- c(1, x[i,]) %*% t(treatment_specific_vertices[i,])
+    }
+  }
+  
+  # initialize B
+  B0 <- matrix(runif( (p+1) * (K-1), -1, 1), nrow = p+1, ncol = K-1) 
+  proj_grad <- euclidean_proj_l1_ball(c(B0), lambda1)
+  B <- matrix(proj_grad, nrow = nrow(B0))
+  
+  # use GD
+  i <- 1
+  while (i < iter0){
+    grad <- 0
+    for (j in 1:n){
+      trace_m <- sum(diag(t(B) %*% xstar[[j]]))
+      grad <- grad + w[j] * ((exp(trace_m) / (1+exp(trace_m))) - y[j]) * xstar[[j]]
+    }
+    grad <- grad/n
+    
+    B0 <- B - (1/i) * grad
+    proj_grad <- euclidean_proj_l1_ball(c(B0), lambda1)
+    B <- matrix(proj_grad, nrow = nrow(B0))
+    i <- i + 1
+  }
+  return (B)
+}
+
+pre_modified_sabdlearn_lambda <- function(B, X, A, Y, w, modified, K = 4) {
+  
+  ## Perform modified SABD-Learning.
+  
+  # B: (matrix) estimated coeffient matrix. 
+  # X: (data.matrix) data matrix of covariates.
+  # A: (vector) vector of treatments.
+  # Y: (vector) vector of outcomes.
+  # w: (vector) covariate balancing weights.
+  # modified: (logical) a logical indicator of whether to use modified method.
+  # K: (integer) number of treatments.
+  
+  set.seed(1)
+  
+  # 1. Initial AD-Learning Step
+  vertices <- simplex(K-1)
+  treatment_specific_vertices <- vertices[A, ]
+  
+  if (sum(is.na(B))>0){
+    XB <- cbind(1, X)[,-which(is.na(B))] %*% B[-which(is.na(B)),]  
+  } else {
+    XB <- cbind(1, X) %*% B  
+  }
+  
+  pred_all <- rowSums(treatment_specific_vertices * XB)
+  resid_squared <- ((K/(K-1))*Y - pred_all)^2
+  AX = cbind(X, A = as.factor(A))
+  Y_modified <- (K / (K-1)) * Y * treatment_specific_vertices
+  
+  # 2. Residual modeling
+  resid_fit <- randomForest(resid_squared ~ ., data = AX)
+  resid_preds <- predict(resid_fit)
+  
+  # 3. Modified weights and SABD-Learning fitting step
+  if (modified == TRUE){ # proposed method
+    w_new <- w / resid_preds  
+  } else { # original method
+    w_new <- 1 / resid_preds  
+  }
+  
+  return (list("w"= w_new, "Y" = Y_modified))
+  
+}
+
+get_x_and_trt_fast <- function(w, trt, x, y, K = 4){
+  
+  ## Obtain intermediate results for a faster computation in PGD.
+  
+  ## input
+  # w: (vector) covariate balancing weights.
+  # trt: (vector) vector of treatments.
+  # x: (data.matrix) data matrix of covariates.
+  # y: (vector) vector of outcomes.
+  # K: (integer) number of treatments.
+  
+  n <- nrow(x)
+  p <- ncol(x)
+  
+  vertices <- simplex(K-1)
+  treatment_specific_vertices <- vertices[trt, ]
+  
+  # get X information / treatment constant
+  xxt <- list(); uut <- list(); yx <- list(); 
+  for (trt_j in 1:K){
+    index <- which(trt == trt_j)
+    xxt_temp <- 0; yx_temp <- 0
+    for (i in index){
+      xxt_temp <- xxt_temp + w[i] * c(1, x[i,]) %*% t(c(1, x[i,]))
+      yx_temp <- yx_temp + w[i] * K/(K-1) * y[i] * c(1, x[i,]) %*% t(vertices[trt_j,])
+    }
+    xxt[[trt_j]] <- xxt_temp
+    yx[[trt_j]] <- yx_temp
+    uut[[trt_j]] <- vertices[trt_j, ] %*% t(vertices[trt_j,])
+  }
+  
+  return (list(xxt, uut, yx))
+}
+
+## compute projections on the positive simplex or the L1 ball.
+
+euclidean_proj_simplex <- function(v, z = 1){
+  
+  # Compute the Euclidean projection on a positive simplex
+  # min_w 0.5 * || w - v ||_2^2 , s.t. \sum_i w_i = z, w_i >= 0
+  # Based on the algorithm in "Efficient Projections onto the L1-Ball for Learning in High Dimensions" (ICML 2008)
+  
+  # v : p-dimensional vector to project
+  # z : integer-valued radius of the simplex
+  # w : Euclidean projection of v on the simplex
+  
+  if (z < 0){
+    print("Radius s must be strictly positive")
+  }
+  
+  p = length(v)
+  
+  # check if we are already on the simplex
+  if (( sum(v) == z ) & ( all(v >= 0) )){
+    return (v)
+  }
+  
+  # get the array of cumulative sums of a sorted decreasing copy of v
+  mu <- sort(v, decreasing = TRUE)
+  
+  # get the number of > 0 components of the optimal solution
+  rho <- tail(which(mu * (1:p) > (cumsum(mu) - z)), 1)
+  
+  # compute the Lagrange multiplier associated to the simplex constraint
+  theta <- (cumsum(mu)[rho] - z) / rho
+  
+  # compute the projection by thresholding v using theta
+  w <- pmax((v - theta), 0)
+  return (w)
+  
+}
+
+euclidean_proj_l1_ball <- function(v, z = 1){
+  
+  if (z < 0){
+    print("Radius s must be strictly positive")
+  }
+  
+  p = length(v)
+  u = abs(v)
+  
+  # check if v is already a solution
+  if (sum(u) <= z){ # L1-norm is <= z
+    return (v)
+  } 
+  
+  # v is not already a solution: optimum lies on the boundary (norm == z)    
+  # project u on the simplex
+  w = euclidean_proj_simplex(u, z = z)
+  
+  # compute the solution to the original problem on v
+  w = w * sign(v)
+  return (w)
+  
+}
+
 ## Compute covariate balancing weights -----------------------------------------
 
 get_IPW_weights <- function(data, method = "RF"){
@@ -379,6 +624,81 @@ all_evaluation <- function(x_training, trt_training, y_training,
   }
 }
 
+fit_PGD <- function(x_training, trt_training, y_training, 
+                    x_test, true_opt_trt_test = NA, 
+                    iter0 = 100, alpha = 1, pre_lambda1 = 10, lambda1 = 1, lambda2 = 0){
+  
+  ## Fit the effective and robust ITR model using PGD algorithm for continuous outcome.
+  
+  ## input
+  # x_training: (data.matrix) data matrix of covariates in the training set.
+  # trt_training: (vector) vector of treatments in the training set.
+  # y_training: (vector) vector of outcomes in the training set.
+  # x_test: (data.matrix) data matrix of covariates in the test set.
+  # true_opt_trt_test: (vector) vector of true optimal treatments in the test set.
+  #                    The default is NA for real data analysis.
+  #                    If true_opt_trt_test is given, accuracy is provided.
+  # iter0: (integer) number of iterations for the PGD algorithm.
+  # alpha: (numeric) step size of the PGD algorithm. Currently supports diminishing step size.
+  # pre_lambda1: (numeric) L1-ball size for the initial constrained set with AD-Learning.
+  # lambda1: (numeric) Final L1-ball size for the constrained set.
+  # lambda2: (numeric) L2 penalization parameter.
+  
+  # Specify other factors
+  K <- length(unique(trt_training))
+  n <- nrow(x_training)
+  
+  # Finding ITR
+  set.seed(1)
+  
+  # Variable screening
+  selected_cov <- distance_cov_test(y_training, trt_training, x_training, K)
+  new_x_training <- data.matrix(x_training[,selected_cov])
+  new_x_test <- data.matrix(x_test[,selected_cov])
+  p <- ncol(new_x_training)
+  
+  # Outcome augmentation for variance reduction
+  y_training_aug_s <- as.numeric(augmented_function(y_training, new_x_training))
+  
+  # Estimate weights
+  AX_training2 <- data.frame(A = factor(trt_training), new_x_training)
+  energy_w <- tryCatch(weightit(A ~ ., data = AX_training2, method = "energy", 
+                                estimand = "ATE")$weights,
+                       error=function(e) rep(0, nrow(AX_training2)))
+  energy_w <- normalized_weights(energy_w, trt_training)
+  
+  # PGD run
+  temp <- get_x_and_trt_fast(w = energy_w, trt = trt_training, 
+                             x = new_x_training, y = y_training_aug_s, K = K)
+  pre_B <- GD_l1ball(temp, K, n, p, lambda1 = pre_lambda1, lambda2 = lambda2,
+                     iter0, alpha)
+  
+  new_w <- pre_modified_sabdlearn_lambda(pre_B, new_x_training, trt_training, y_training_aug_s, 
+                                         energy_w, modified = T, K)[[1]]
+  temp2 <- get_x_and_trt_fast(w = new_w, trt = trt_training, x = new_x_training, 
+                              y = y_training_aug_s, K = K)
+  B <- GD_l1ball(temp2, K, n, p, lambda1 = lambda1, lambda2 = lambda2,
+                 iter0 = 10, alpha)
+  estimated_ours <- get_ITR(B, new_x_test, K = K, lasso = F)  
+  
+  # Calculate accuracy
+  if (sum(is.na(true_opt_trt_test)) != TRUE){
+    ours_constrained <- mean(estimated_ours == true_opt_trt_test)
+    estimated_ITR <- estimated_ours
+    accuracy <- ours_constrained
+    
+    names(estimated_ITR) <- "Proposed_Constrained"
+    names(accuracy) <- "Proposed_Constrained"
+    result <- list("accuracy" = accuracy, "estimated_ITR" = estimated_ITR)
+    return(result)
+    
+  } else {
+    estimated_ITR <- estimated_ours
+    names(estimated_ITR) <- "Proposed_Constrained"
+    return(estimated_ITR)
+  }
+}  
+
 ## Fit effective ITR-Learning -----------------------------------------------
 
 ITR_Learning <- function(x_training, trt_training, y_training,
@@ -393,7 +713,7 @@ ITR_Learning <- function(x_training, trt_training, y_training,
   # binary: (logical) Type of outcome variable. The default is continuous (TRUE).
   
   ## output
-  # 1. Model fit (B matrix)
+  # 1. model fit (B matrix)
   # 2. index of covariates used for model fitting
   
   set.seed(1)
